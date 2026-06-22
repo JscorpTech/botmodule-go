@@ -72,6 +72,10 @@ type CredentialType struct {
 type Result struct {
 	ContextUpdates map[string]any `json:"context_updates"`
 	ExitOutput     string         `json:"exit_output,omitempty"`
+	// Error — bo'sh bo'lmasa, bu SURFACE qilinadigan xato: platforma uni debug
+	// error ro'yxati + alert'da ko'rsatadi va node'ni qizil (failed) qiladi, flow
+	// to'xtaydi. ContextUpdates baribir qo'llanadi (xato detali state'da qoladi).
+	Error string `json:"error,omitempty"`
 }
 
 // MatchResult — trigger.match qaytaradigan natija.

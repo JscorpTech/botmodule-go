@@ -362,6 +362,28 @@ func TestCredentialTypesEmpty(t *testing.T) {
 	}
 }
 
+// Result.Error node.execute javobida "error" maydoni sifatida chiqishini tekshiradi.
+func TestResultError(t *testing.T) {
+	m := botmodule.New("e", "E")
+	m.AddNode(botmodule.Node{
+		Type: "e.Fail",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+			return botmodule.Result{
+				ContextUpdates: map[string]any{"x": "1"},
+				Error:          "API ishlamadi",
+			}
+		},
+	})
+	resp := rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{"type": "e.Fail", "data": map[string]any{}})
+	result, _ := resp["result"].(map[string]any)
+	if result["error"] != "API ishlamadi" {
+		t.Errorf("result.error = %v, want 'API ishlamadi'", result["error"])
+	}
+	if cu, _ := result["context_updates"].(map[string]any); cu["x"] != "1" {
+		t.Errorf("context_updates xato bo'lsa ham qo'llanishi kerak: %v", result["context_updates"])
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

@@ -102,7 +102,7 @@ ishlatiladi → constructor kodiga tegmasdan avtomatik renderlanadi.
   descriptionKey: "module.demo.echo.desc",
   iconName: "sparkles",         // lucide-react ikon nomi (kebab/lower)
   colorToken: "blue",           // blue|violet|emerald|amber|... (rang tokeni)
-  size: { width: 200 },         // standart node = 200; 300 katta ko'rinadi
+  size: { width: 200 },         // standart node = 200; ko'p field bo'lsa ham 200 qoldiring
   sidebar: {
     enabled: true,              // node sidebar ro'yxatida ko'rinsinmi
     groupId: "integrations",    // qaysi guruhга (faqat ko'rinish)
@@ -415,7 +415,7 @@ const EXECUTORS = {
 - [ ] Node turi **`moduleId.NodeName`** namespace bilan (kolliziya yo'q).
 - [ ] Faqat **standart field type'lar** (12-bo'lim ro'yxati).
 - [ ] `category: "triggers"` → trigger; aks holда action.
-- [ ] `size.width` ni **200** qiling (standart node bilan bir xil; 300 katta).
+- [ ] `size.width` ni **200** qiling (standart node bilan bir xil; ko'p field bo'lsa ham 200 qoldiring).
 - [ ] State'ga yozish **faqat** `context_updates` orqali.
 - [ ] `{{...}}` ni modul resolve qilmaydi — engine qiladi (string data'да).
 - [ ] Credential sirini context'ga **to'liq oqizmang**.

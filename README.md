@@ -193,7 +193,7 @@ type Node struct {
 | `Category` | `string` | trigger bo'lsa `"triggers"`, aks holda `"integrations"` | Sidebar guruhi — pastdagi ro'yxatdan |
 | `Icon` | `string` | `""` (→ sparkles) | Ikon nomi — [8-bo'lim](#8-ikon-nomlari-icon) |
 | `Color` | `string` | `""` (→ kulrang) | Rang token — [9-bo'lim](#9-rang-tokenlari-color) |
-| `Width` | `int` | `200` | Node kengligi (px). Ko'p field bo'lsa `300` |
+| `Width` | `int` | `200` | Node kengligi (px). Ko'p field bo'lsa ham `200` qoldiring |
 | `SortOrder` | `int` | `100+index` | Sidebar tartib raqami (kichik = yuqorida) |
 | `Content` | `[]Field` | `[]` | Form maydonlari — [5-bo'lim](#5-field-struct--content-maydonlari) |
 | `Defaults` | `map[string]any` | — | Yangi node qo'yilganda default qiymatlar (`data[key]`) |

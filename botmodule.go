@@ -45,6 +45,29 @@ type Credential struct {
 	Data    map[string]string `json:"data"`
 }
 
+// CredentialField — credential type'ining bitta input maydoni.
+type CredentialField struct {
+	Name        string         `json:"name"`              // data kaliti (masalan "token", "base_url")
+	Label       string         `json:"label,omitempty"`   // ko'rinadigan nom
+	Type        string         `json:"type"`              // text|password|number|textarea|select|url|switch
+	Options     []SelectOption `json:"options,omitempty"` // select uchun
+	Required    bool           `json:"required,omitempty"`
+	Secret      bool           `json:"secret,omitempty"` // API javobida maskalanadi
+	Placeholder string         `json:"placeholder,omitempty"`
+	Default     any            `json:"default,omitempty"`
+}
+
+// CredentialType — modul e'lon qiladigan credential turi. Foydalanuvchi shu
+// turdan credential yaratadi; engine uni decrypt qilib node.execute'ga uzatadi.
+type CredentialType struct {
+	Key    string            `json:"key"`   // global unique (masalan "weather.apikey")
+	Label  string            `json:"label,omitempty"`
+	Icon   string            `json:"icon,omitempty"`  // lucide nomi
+	Color  string            `json:"color,omitempty"` // hex (#3B82F6)
+	Mode   string            `json:"mode"`            // bearer|apikey|basic|header|none
+	Fields []CredentialField `json:"fields"`
+}
+
 // Result — node.execute qaytaradigan natija.
 type Result struct {
 	ContextUpdates map[string]any `json:"context_updates"`
@@ -200,7 +223,8 @@ type Module struct {
 	Version string
 	Docs    string
 
-	nodes []*Node
+	nodes           []*Node
+	credentialTypes []CredentialType
 }
 
 // New — yangi modul yaratadi.
@@ -215,6 +239,13 @@ func New(id, name string) *Module {
 // AddNode — modulga node qo'shadi. Type majburiy va "moduleId.NodeName" formatida bo'lishi shart.
 func (m *Module) AddNode(n Node) {
 	m.nodes = append(m.nodes, &n)
+}
+
+// AddCredentialType — modul o'z credential turini e'lon qiladi. describe() uni
+// "credentialTypes" ro'yxatida qaytaradi; platforma ro'yxatga oladi va foydalanuvchi
+// shu turdan credential yaratadi. Key global unique bo'lsin (masalan "weather.apikey").
+func (m *Module) AddCredentialType(ct CredentialType) {
+	m.credentialTypes = append(m.credentialTypes, ct)
 }
 
 // -----------------------------------------------------------------------------
@@ -404,9 +435,14 @@ func (m *Module) handleRPC(w http.ResponseWriter, r *http.Request) {
 	var resp rpcResponse
 	switch req.Method {
 	case "describe":
+		creds := m.credentialTypes
+		if creds == nil {
+			creds = []CredentialType{}
+		}
 		resp = okResp(req.ID, map[string]any{
-			"module": map[string]string{"id": m.ID, "name": m.Name, "version": m.Version},
-			"nodes":  m.buildManifests(),
+			"module":          map[string]string{"id": m.ID, "name": m.Name, "version": m.Version},
+			"nodes":           m.buildManifests(),
+			"credentialTypes": creds,
 		})
 
 	case "docs":

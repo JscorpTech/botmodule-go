@@ -313,6 +313,55 @@ func TestGlobalTriggerField(t *testing.T) {
 	}
 }
 
+// Modul e'lon qilgan credential type describe() chiqishida bo'lishini tekshiradi.
+func TestCredentialTypes(t *testing.T) {
+	m := botmodule.New("weather", "Weather")
+	m.AddCredentialType(botmodule.CredentialType{
+		Key:   "weather.apikey",
+		Label: "Weather API",
+		Mode:  "header",
+		Fields: []botmodule.CredentialField{
+			{Name: "token", Label: "Token", Type: "text", Required: true, Secret: true},
+			{Name: "base_url", Label: "Base URL", Type: "text"},
+			{Name: "model", Label: "Model", Type: "select", Options: []botmodule.SelectOption{
+				{Value: "v1", Label: "V1"}, {Value: "v2", Label: "V2"},
+			}},
+		},
+	})
+
+	resp := rpcCall(t, m.ServeHandler(), "describe", nil)
+	result, _ := resp["result"].(map[string]any)
+	cts, _ := result["credentialTypes"].([]any)
+	if len(cts) != 1 {
+		t.Fatalf("credentialTypes len = %d, want 1", len(cts))
+	}
+	ct := cts[0].(map[string]any)
+	if ct["key"] != "weather.apikey" || ct["mode"] != "header" {
+		t.Errorf("credential type key/mode noto'g'ri: %v", ct)
+	}
+	fields, _ := ct["fields"].([]any)
+	if len(fields) != 3 {
+		t.Errorf("fields len = %d, want 3", len(fields))
+	}
+	model := fields[2].(map[string]any)
+	if model["type"] != "select" {
+		t.Errorf("3-field type = %v, want select", model["type"])
+	}
+	if opts, _ := model["options"].([]any); len(opts) != 2 {
+		t.Errorf("select options len = %d, want 2", len(opts))
+	}
+}
+
+// credentialTypes yo'q bo'lsa describe() bo'sh massiv qaytarishini tekshiradi.
+func TestCredentialTypesEmpty(t *testing.T) {
+	m := newTestModule()
+	resp := rpcCall(t, m.ServeHandler(), "describe", nil)
+	result, _ := resp["result"].(map[string]any)
+	if cts, ok := result["credentialTypes"].([]any); !ok || len(cts) != 0 {
+		t.Errorf("credentialTypes = %v, want []", result["credentialTypes"])
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

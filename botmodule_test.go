@@ -267,6 +267,52 @@ func TestDocs(t *testing.T) {
 	}
 }
 
+// Trigger node'lariga avtomatik "global" switch field qo'shilishi va Global:true
+// bo'lganda defaults.global==true bo'lishini tekshiradi.
+func TestGlobalTriggerField(t *testing.T) {
+	m := botmodule.New("g", "G")
+	m.AddNode(botmodule.Node{
+		Type: "g.OnEvent", Title: "Ev", Trigger: true, TriggerMode: "event-match",
+		Global:  true,
+		Content: []botmodule.Field{{Type: "text", Key: "kw"}},
+		Match:   func(c *botmodule.TriggerCtx) botmodule.MatchResult { return botmodule.MatchResult{} },
+	})
+	// Action node global field OLMASLIGI kerak.
+	m.AddNode(botmodule.Node{
+		Type: "g.Act", Title: "Act",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result { return botmodule.Result{} },
+	})
+
+	resp := rpcCall(t, m.ServeHandler(), "describe", nil)
+	result, _ := resp["result"].(map[string]any)
+	nodes, _ := result["nodes"].([]any)
+
+	for _, n := range nodes {
+		node := n.(map[string]any)
+		content, _ := node["content"].([]any)
+		hasGlobal := false
+		for _, f := range content {
+			if f.(map[string]any)["key"] == "global" {
+				hasGlobal = true
+			}
+		}
+		switch node["type"] {
+		case "g.OnEvent":
+			if !hasGlobal {
+				t.Error("trigger node'da 'global' field yo'q")
+			}
+			defaults, _ := node["defaults"].(map[string]any)
+			if defaults["global"] != true {
+				t.Errorf("Global:true uchun defaults.global = %v, want true", defaults["global"])
+			}
+		case "g.Act":
+			if hasGlobal {
+				t.Error("action node'ga 'global' field qo'shilmasligi kerak")
+			}
+		}
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

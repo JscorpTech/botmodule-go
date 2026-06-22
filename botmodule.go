@@ -182,6 +182,7 @@ type Node struct {
 	// Trigger-specific.
 	Trigger     bool   // true = trigger node
 	TriggerMode string // "event-match" yoki ""
+	Global      bool   // true = global trigger default ON (har qanday holatda ishlaydi, joriy flowni to'xtatadi)
 
 	// Handler funksiyalari (runtime).
 	Execute func(c *ExecuteCtx) Result
@@ -300,6 +301,35 @@ func (m *Module) buildManifests() []nodeManifest {
 		if man.Content == nil {
 			man.Content = []Field{}
 		}
+
+		// Trigger node'larga "global" toggle qo'shamiz (built-in triggerlar kabi).
+		// Yoqilsa, foydalanuvchi boshqa flow ichida (waiting) bo'lsa ham bu trigger
+		// ishlaydi. Engine node.Data["global"]==true ni o'qiydi. Default = n.Global.
+		if n.Trigger {
+			hasGlobal := false
+			for _, f := range man.Content {
+				if f.Key == "global" {
+					hasGlobal = true
+					break
+				}
+			}
+			if !hasGlobal {
+				man.Content = append(man.Content, Field{
+					Type:     "switch",
+					Key:      "global",
+					Label:    "Global trigger",
+					HelpText: "Yoqilsa, foydalanuvchi boshqa flow ichida bo'lsa ham bu trigger ishlaydi (joriy flowni to'xtatib, yangisini boshlaydi).",
+					Optional: true,
+				})
+			}
+			if man.Defaults == nil {
+				man.Defaults = map[string]any{}
+			}
+			if _, ok := man.Defaults["global"]; !ok {
+				man.Defaults["global"] = n.Global
+			}
+		}
+
 		out = append(out, man)
 	}
 	return out

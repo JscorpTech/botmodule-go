@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	botmodule "github.com/BotSpace/botmodule-go"
+	botmodule "github.com/JscorpTech/botmodule-go"
 )
 
 func newTestModule() *botmodule.Module {

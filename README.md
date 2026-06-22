@@ -12,7 +12,7 @@ Faqat stdlib: `net/http`, `encoding/json`, `strings` — tashqi dependency yo'q.
 ## Tez boshlash
 
 ```bash
-go get github.com/BotSpace/botmodule-go
+go get github.com/JscorpTech/botmodule-go
 ```
 
 ```go
@@ -20,7 +20,7 @@ package main
 
 import (
     "strings"
-    botmodule "github.com/BotSpace/botmodule-go"
+    botmodule "github.com/JscorpTech/botmodule-go"
 )
 
 func main() {

@@ -12,7 +12,7 @@ Faqat stdlib: `net/http`, `encoding/json`, `strings` — tashqi dependency yo'q.
 ## Tez boshlash
 
 ```bash
-go get github.com/JscorpTech/botmodule-go
+go get github.com/BotSpace/botmodule-go
 ```
 
 ```go
@@ -20,7 +20,7 @@ package main
 
 import (
     "strings"
-    botmodule "github.com/JscorpTech/botmodule-go"
+    botmodule "github.com/BotSpace/botmodule-go"
 )
 
 func main() {
@@ -387,7 +387,7 @@ go test ./...
 3. `main.go` — `botmodule.New(id, name)` bilan modul yarating.
 4. `m.AddNode(...)` — har node uchun `Execute` yoki `Match` yozing.
 5. `m.Serve(":8100")` — server ishga tushiradi.
-6. `docker build` + registry'ga push → admin panel → Modullar → qo'shish.
+6. Lokal sinang: `go run .` → `curl localhost:8100/rpc -d '{"jsonrpc":"2.0","method":"describe","id":1}'`.
 
 ---
 

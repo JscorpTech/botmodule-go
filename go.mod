@@ -1,3 +1,3 @@
-module github.com/JscorpTech/botmodule-go
+module github.com/BotSpace/botmodule-go
 
 go 1.22

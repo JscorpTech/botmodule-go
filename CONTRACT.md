@@ -331,7 +331,7 @@ header `X-Internal-Token`, body `{chat_id, context, payload}`.
 
 ## 11. `docs()` — hujjat
 
-Markdown qaytaradi; backend uni saqlaydi, admin/detail panel ko'rsatadi.
+Markdown qaytaradi; platforma uni saqlaydi va modul tavsifida ko'rsatadi.
 ```js
 if (method === "docs") return reply({ markdown: DOCS });
 ```
@@ -374,22 +374,14 @@ CMD ["node", "server.js"]
 
 ---
 
-## 13. Deploy / ro'yxatga olish
+## 13. Deploy
 
-1. **Image quring** va registry'ga push qiling:
-   `registry.iprogrammer.uz/botspace/<slug>:latest` (CI orqали).
-2. **Admin panel** → **Modullar** → **Modul qo'shish**:
-   - `slug` (= module.id), `name`, `description`, `icon` (lucide),
-     `github_url`, `image` (registry yo'li), `port`, `auth_token` (ixtiyoriy),
-     `active: true`.
-3. Modul **shared** — barcha loyihalar uchun **bitta** pod `module-{slug}`.
-   Loyiha modulni o'rnatganda (constructor → 🧩 Modullar → O'rnatish) shunchaki
-   **ishlatish huquqini** oladi (yangi pod yaratilmaydi). Pod birinchi
-   o'rnatishda idempotent yaratiladi, oxirgi loyiha o'chirganда olib tashlanadi.
-   Credential'ни engine resolve qilib node.execute'да uzatadi, shuning uchun
-   shared pod'ga `PROJECT_ID` shart emas (stateless, per-call).
-4. **Manifest yangilash:** modul kodi/o'lchami o'zgарганда admin → Modullar →
-   **Yangilash** (yoki loyiha ochilganda 120s TTL bilan avtomatik).
+Modulni yozib bo'lgach, `module.yaml` orqali platforma uni o'zi build qiladi va
+ishga tushiradi — siz faqat `source` ni belgilaysiz:
+- `source.github` → platforma reponi klonlaydi, image quradi, ishga tushiradi.
+- `source.endpoint` → modulni o'z serveringizda yuritasiz, platforma faqat ulanadi.
+
+(Platforma ichki ishi — pod, registry, manifest cache — sizning vazifangiz emas.)
 
 ---
 
@@ -428,8 +420,7 @@ const EXECUTORS = {
 - [ ] `{{...}}` ni modul resolve qilmaydi — engine qiladi (string data'да).
 - [ ] Credential sirini context'ga **to'liq oqizmang**.
 - [ ] `/health` 200 qaytarsin (aks holда pod Ready bo'lmaydi).
-- [ ] `describe`dagi node turlari `module.yaml provides.nodes` bilan mos.
-- [ ] Image push'дан keyin admin → **Yangilash** bilan manifestni yangilang.
+- [ ] Node turi **`moduleId.NodeName`** namespace bilan (kolliziya yo'q).
 
 ---
 

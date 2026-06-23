@@ -448,6 +448,7 @@ type handleDef struct {
 	OffsetClass  string `json:"offsetClass,omitempty"`  // vertikal joylashuv (translate-y-[..%])
 	StyleVariant string `json:"styleVariant,omitempty"` // default|success|danger|warning|accent
 	Label        string `json:"label,omitempty"`
+	Hidden       bool   `json:"hidden,omitempty"` // ko'rinmas (lekin ulanadi) — kirish handle uchun
 }
 
 // outputOffsetClass — n ta chiqishni markaz atrofida vertikal teng taqsimlaydi.
@@ -486,8 +487,8 @@ func (m *Module) buildManifests() []nodeManifest {
 		case n.Trigger:
 			handles = []handleDef{{Preset: "source-default"}}
 		case len(n.Outputs) > 0:
-			// Bir nechta nomli chiqish: chap target + har output uchun o'ng source.
-			handles = []handleDef{{Kind: "target", Side: "left", ID: "target-handler"}}
+			// Bir nechta nomli chiqish: chap target (yashirin) + har output uchun o'ng source.
+			handles = []handleDef{{Kind: "target", Side: "left", ID: "target-handler", Hidden: true}}
 			for j, o := range n.Outputs {
 				variant := o.Variant
 				if variant == "" {
@@ -503,7 +504,12 @@ func (m *Module) buildManifests() []nodeManifest {
 				})
 			}
 		default:
-			handles = []handleDef{{Preset: "target-default"}, {Preset: "source-default"}}
+			// Kirish (target) yashirin — ko'rinmaydi, lekin ulanadi (id "target-handler"
+			// preset bilan bir xil, mavjud edge'lar buzilmaydi). Chiqish — oddiy.
+			handles = []handleDef{
+				{Kind: "target", Side: "left", ID: "target-handler", Hidden: true},
+				{Preset: "source-default"},
+			}
 		}
 
 		man := nodeManifest{

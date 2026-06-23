@@ -489,6 +489,43 @@ func TestFileAPI(t *testing.T) {
 	}
 }
 
+// TestUploadFileTrailingSlash — DRF APPEND_SLASH regressiyasi: upload_url trailing
+// slash'siz bo'lsa server 301 redirect qiladi; SDK URL'ni normallashtirmasa Go
+// client POST'ni GET'ga tushiradi (405). Fix: UploadFile trailing slash qo'shadi.
+func TestUploadFileTrailingSlash(t *testing.T) {
+	var gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// "/up" (slashsiz) → 301 "/up/" (DRF APPEND_SLASH xatti-harakati).
+		if !strings.HasSuffix(r.URL.Path, "/") {
+			http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
+			return
+		}
+		gotMethod = r.Method
+		w.Write([]byte(`{"uuid":"ok"}`))
+	}))
+	defer srv.Close()
+
+	var up string
+	m := botmodule.New("f", "F")
+	m.AddNode(botmodule.Node{
+		Type: "f.Up",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+			up, _ = c.UploadFile("a.txt", []byte("hi"))
+			return botmodule.Result{}
+		},
+	})
+	rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{
+		"type": "f.Up", "data": map[string]any{},
+		"file_api": map[string]any{"upload_url": srv.URL + "/up", "token": "t"},
+	})
+	if gotMethod != http.MethodPost {
+		t.Errorf("server method = %q, want POST (redirect POST'ni GET'ga tushirmasin)", gotMethod)
+	}
+	if up != "ok" {
+		t.Errorf("UploadFile uuid = %q, want ok", up)
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

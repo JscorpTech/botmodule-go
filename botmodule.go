@@ -162,7 +162,10 @@ func (c *ExecuteCtx) UploadFile(filename string, content []byte) (string, error)
 	}
 	w.Close()
 
-	req, err := http.NewRequest(http.MethodPost, c.files.UploadURL, &body)
+	// Trailing slash — DRF APPEND_SLASH POST'ni 301 redirect qiladi va Go HTTP
+	// client redirect'da POST'ni GET'ga tushiradi (405). GetFile/DeleteFile kabi normallashtir.
+	uploadURL := strings.TrimSuffix(c.files.UploadURL, "/") + "/"
+	req, err := http.NewRequest(http.MethodPost, uploadURL, &body)
 	if err != nil {
 		return "", err
 	}

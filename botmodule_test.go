@@ -446,6 +446,49 @@ func TestOptionsLoad(t *testing.T) {
 	}
 }
 
+// ExecuteCtx.UploadFile/GetFile engine bergan file_api orqali ishlashini tekshiradi.
+func TestFileAPI(t *testing.T) {
+	// Soxta platforma fayl API: upload → {uuid}, get → baytlar.
+	fileSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost { // upload
+			if r.Header.Get("Authorization") != "Bearer tok123" {
+				w.WriteHeader(401)
+				return
+			}
+			w.Write([]byte(`{"uuid":"file-xyz"}`))
+			return
+		}
+		w.Write([]byte("FILEBYTES")) // get
+	}))
+	defer fileSrv.Close()
+
+	var up, got string
+	m := botmodule.New("f", "F")
+	m.AddNode(botmodule.Node{
+		Type: "f.Files",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+			id, _ := c.UploadFile("a.txt", []byte("hi"))
+			up = id
+			b, _ := c.GetFile("file-xyz")
+			got = string(b)
+			return botmodule.Result{ContextUpdates: map[string]any{"uuid": id}}
+		},
+	})
+
+	rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{
+		"type": "f.Files", "data": map[string]any{},
+		"file_api": map[string]any{
+			"upload_url": fileSrv.URL, "get_base": fileSrv.URL, "token": "tok123",
+		},
+	})
+	if up != "file-xyz" {
+		t.Errorf("UploadFile uuid = %q, want file-xyz", up)
+	}
+	if got != "FILEBYTES" {
+		t.Errorf("GetFile = %q, want FILEBYTES", got)
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

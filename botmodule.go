@@ -1,12 +1,15 @@
 package botmodule
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // -----------------------------------------------------------------------------
@@ -112,6 +115,98 @@ type ExecuteCtx struct {
 	Context     map[string]any
 	ChatID      int64
 	Credentials map[string]*Credential
+
+	files *fileAPI // platforma fayl API (upload/get/delete) — engine beradi
+}
+
+// fileAPI — engine node.execute'da uzatadigan fayl API kirish nuqtasi.
+// GetBase: public retrieve bazasi (token kerak emas). UploadURL: modul-file proxy
+// (upload/delete). Token: fayl-only, project'ga scoped (broad token EMAS).
+type fileAPI struct {
+	GetBase   string `json:"get_base"`
+	UploadURL string `json:"upload_url"`
+	Token     string `json:"token"`
+}
+
+// GetFile — saqlangan faylni UUID bo'yicha o'qiydi (public retrieve). Baytlarni qaytaradi.
+func (c *ExecuteCtx) GetFile(uuid string) ([]byte, error) {
+	if c.files == nil || c.files.GetBase == "" {
+		return nil, fmt.Errorf("file API mavjud emas")
+	}
+	url := strings.TrimSuffix(c.files.GetBase, "/") + "/" + uuid + "/"
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get file %s: status %d", uuid, resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+// UploadFile — yangi fayl saqlaydi (platforma storage). Saqlangan fayl UUID'sini qaytaradi.
+// Bu UUID'ni ContextUpdates'ga qo'ysangiz, keyingi node'lar (Send*) faylni ishlatadi.
+func (c *ExecuteCtx) UploadFile(filename string, content []byte) (string, error) {
+	if c.files == nil || c.files.UploadURL == "" {
+		return "", fmt.Errorf("file API mavjud emas (upload)")
+	}
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	fw, err := w.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := fw.Write(content); err != nil {
+		return "", err
+	}
+	w.Close()
+
+	req, err := http.NewRequest(http.MethodPost, c.files.UploadURL, &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+c.files.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("upload file: status %d: %s", resp.StatusCode, string(raw))
+	}
+	var out struct {
+		UUID string `json:"uuid"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", fmt.Errorf("upload javobini o'qib bo'lmadi: %w", err)
+	}
+	return out.UUID, nil
+}
+
+// DeleteFile — saqlangan faylni UUID bo'yicha o'chiradi.
+func (c *ExecuteCtx) DeleteFile(uuid string) error {
+	if c.files == nil || c.files.UploadURL == "" {
+		return fmt.Errorf("file API mavjud emas (delete)")
+	}
+	url := strings.TrimSuffix(c.files.UploadURL, "/") + "/" + uuid + "/"
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.files.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete file %s: status %d: %s", uuid, resp.StatusCode, string(raw))
+	}
+	return nil
 }
 
 // String — data ichidan string qiymat oladi. Topilmasa "".
@@ -509,6 +604,7 @@ type executeParams struct {
 	Context     map[string]any         `json:"context"`
 	ChatID      int64                  `json:"chat_id"`
 	Credentials map[string]*Credential `json:"credentials"`
+	FileAPI     *fileAPI               `json:"file_api,omitempty"`
 }
 
 type triggerParams struct {
@@ -576,6 +672,7 @@ func (m *Module) handleRPC(w http.ResponseWriter, r *http.Request) {
 			Context:     p.Context,
 			ChatID:      p.ChatID,
 			Credentials: p.Credentials,
+			files:       p.FileAPI,
 		})
 		if result.ContextUpdates == nil {
 			result.ContextUpdates = map[string]any{}

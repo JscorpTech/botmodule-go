@@ -709,6 +709,16 @@ m.AddNode(botmodule.Node{
 ```
 `Output.Variant`: `default|success|danger|warning|accent` (handle rangi).
 
+**Masofa (spacing) — qo'lda BERILMAYDI:** SDK chiqishlarni node o'ng tomonida vertikal
+**teng taqsimlaydi** (markaz atrofida 300% qadam ≈ 48px, handle'lar va label'lar ustma-ust
+tushmaydi). Siz faqat `Outputs` ro'yxatini berasiz — joylashuv (`offsetClass`) avtomatik
+hisoblanadi:
+- 2 chiqish → `-150%` / `+150%` (tepa/past)
+- 3 chiqish → `-300%` / `0` / `+300%`
+- n chiqish → markaz atrofida `(i − (n−1)/2) × 300%`
+
+Ko'p chiqish bo'lsa node balandroq ko'rinadi — bu normal. Maxsus masofa sozlash kerak emas.
+
 ### 20.3. `AddCredentialType` — modul o'z credential turini beradi
 Modul `describe()`'da credential type e'lon qiladi; foydalanuvchi shu turdan credential
 yaratadi. Key `<moduleId>.<name>` namespace bilan (masalan `openrouter.apikey`).

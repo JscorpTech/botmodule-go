@@ -34,6 +34,7 @@ token'lari, JSON-RPC kontrakti, `module.yaml`, deploy — ipidan ignasigacha.
 17. [`module.yaml` — to'liq](#17-moduleyaml--toliq)
 18. [Test](#18-test)
 19. [Yangi modul yozish — checklist](#19-yangi-modul-yozish--checklist)
+20. [Qo'shimcha imkoniyatlar (v0.2–v0.5): Result.Error, Outputs, credential types, dynamic_select, fayl API, Global](#20-qoshimcha-imkoniyatlar-v02v05)
 
 ---
 
@@ -672,6 +673,110 @@ func TestExecute(t *testing.T) {
 7. `m.Docs` ga markdown yozing (`docs` RPC).
 8. Lokal sinang: `go run .` → `curl localhost:8100/rpc -d '{"jsonrpc":"2.0","method":"describe","id":1}'`.
 9. `module.yaml` to'ldiring (17-bo'lim) va GitHub'ga push qiling.
+
+---
+
+## 20. Qo'shimcha imkoniyatlar (v0.2–v0.5)
+
+### 20.1. `Result.Error` — xatoni UI'ga chiqarish
+`Execute` `Result{Error: "..."}` qaytarsa, platforma uni **debug error ro'yxati + alert**'da
+ko'rsatadi va node'ni qizil (failed) qiladi (flow to'xtaydi). `ContextUpdates` baribir
+qo'llanadi (xato detali state'da qoladi).
+```go
+return botmodule.Result{
+    ContextUpdates: map[string]any{"llm_error": msg},
+    Error:          msg, // UI'da ko'rinadi
+}
+```
+
+### 20.2. `Node.Outputs` — nomli dinamik chiqishlar
+Node bir nechta nomli chiqish edge'i bera oladi. `Result.ExitOutput` qaysi chiqishga
+ketishini aytadi (engine `output-<name>` edge'iga yo'naltiradi).
+```go
+m.AddNode(botmodule.Node{
+    Type: "mymodule.Route",
+    Outputs: []botmodule.Output{
+        {Name: "found", Label: "Topildi", Variant: "success"},
+        {Name: "missing", Label: "Topilmadi", Variant: "danger"},
+    },
+    Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+        if c.String("id") != "" {
+            return botmodule.Result{ExitOutput: "found"}
+        }
+        return botmodule.Result{ExitOutput: "missing"}
+    },
+})
+```
+`Output.Variant`: `default|success|danger|warning|accent` (handle rangi).
+
+### 20.3. `AddCredentialType` — modul o'z credential turini beradi
+Modul `describe()`'da credential type e'lon qiladi; foydalanuvchi shu turdan credential
+yaratadi. Key `<moduleId>.<name>` namespace bilan (masalan `openrouter.apikey`).
+```go
+m.AddCredentialType(botmodule.CredentialType{
+    Key:   "mymodule.apikey",
+    Label: "My API",
+    Mode:  "apikey", // bearer|apikey|basic|header|none
+    Fields: []botmodule.CredentialField{
+        {Name: "api_key", Label: "API Key", Type: "password", Required: true, Secret: true},
+        {Name: "model", Label: "Model", Type: "select", Options: []botmodule.SelectOption{
+            {Value: "small", Label: "Small"}, {Value: "large", Label: "Large"},
+        }},
+    },
+})
+```
+Node'da `{Type:"credential", Key:"cred", CredentialType:"mymodule.apikey"}` bilan ishlatiladi.
+
+### 20.4. `dynamic_select` + `AddOptionsLoader` — kaskadli tanlov
+Field optionlari modul tomonidan dinamik yuklanadi (Google Sheets uslubi: doc → sheet).
+`DependsOn` orqali kaskad. `CredentialKey` bo'lsa credential talab qilinadi; bo'lmasa —
+credential'siz ishlaydi.
+```go
+Content: []botmodule.Field{
+    {Type: "dynamic_select", Key: "country", Label: "Davlat", Resource: "countries"},
+    {Type: "dynamic_select", Key: "city", Label: "Shahar", Resource: "cities", DependsOn: []string{"country"}},
+},
+// ...
+m.AddOptionsLoader("countries", func(c *botmodule.OptionsCtx) []botmodule.SelectOption {
+    return []botmodule.SelectOption{{Value: "uz", Label: "O'zbekiston"}}
+})
+m.AddOptionsLoader("cities", func(c *botmodule.OptionsCtx) []botmodule.SelectOption {
+    if c.String("country") == "uz" { // dependsOn qiymati
+        return []botmodule.SelectOption{{Value: "tashkent", Label: "Toshkent"}}
+    }
+    return nil
+})
+```
+`OptionsCtx`: `c.String(key)` (dependsOn params), `c.Credential()` (agar credentialKey bo'lsa).
+
+### 20.5. Fayl bilan ishlash — `ExecuteCtx` fayl API
+Modul platforma fayllarini o'qiydi/saqlaydi/o'chiradi. Engine `node.execute`'da fayl
+API'ни (project'ga scoped, xavfsiz token) avtomatik uzatadi — alohida sozlash kerak emas.
+```go
+Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+    // SAQLASH: yangi fayl → UUID
+    uuid, err := c.UploadFile("report.pdf", pdfBytes)
+    // O'QISH: UUID bo'yicha baytlar
+    data, err := c.GetFile(uuid)
+    // O'CHIRISH
+    err = c.DeleteFile(uuid)
+    return botmodule.Result{ContextUpdates: map[string]any{"file_uuid": uuid}}
+}
+```
+| Metod | Vazifa |
+|---|---|
+| `c.UploadFile(name, content []byte) (uuid string, err error)` | Faylni saqlaydi, UUID qaytaradi (state'ga qo'ying → Send* node'lar ishlatadi) |
+| `c.GetFile(uuid string) ([]byte, error)` | Faylni o'qiydi (public retrieve) |
+| `c.DeleteFile(uuid string) error` | Faylni o'chiradi |
+
+> Flow'da fayl `DownloadFileNode` bilan saqlangan bo'lsa, uning UUID'sini (`{{state_x}}`)
+> modul node field'iga berib, `c.GetFile`/`c.DeleteFile` bilan ishlaysiz.
+> Xavfsizlik: modulga internal token berilmaydi — faqat fayl-only, project'ga scoped HMAC token.
+
+### 20.6. `Node.Global` — global trigger
+Trigger node'iga `Global: true` bersangiz, SDK avtomatik "global" toggle field qo'shadi
+(default ON). Global trigger har qanday holatda ishlaydi (boshqa flow ichida bo'lsa ham,
+joriy flowni to'xtatib). Catch-all uchun foydali.
 
 ---
 

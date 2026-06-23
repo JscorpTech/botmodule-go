@@ -451,11 +451,13 @@ type handleDef struct {
 }
 
 // outputOffsetClass — n ta chiqishni markaz atrofida vertikal teng taqsimlaydi.
+// Qadam 300% (~48px) — handle'lar va ularning label'lari ustma-ust tushmasin
+// (16px handle uchun 170% juda zich edi).
 func outputOffsetClass(i, n int) string {
 	if n <= 1 {
 		return ""
 	}
-	off := (float64(i) - float64(n-1)/2.0) * 170.0
+	off := (float64(i) - float64(n-1)/2.0) * 300.0
 	return fmt.Sprintf("translate-y-[%d%%]", int(off))
 }
 

@@ -71,11 +71,19 @@ type CredentialType struct {
 // Result — node.execute qaytaradigan natija.
 type Result struct {
 	ContextUpdates map[string]any `json:"context_updates"`
-	ExitOutput     string         `json:"exit_output,omitempty"`
+	ExitOutput     string         `json:"exit_output,omitempty"` // Node.Outputs dagi Name (qaysi chiqishga ketsin)
 	// Error — bo'sh bo'lmasa, bu SURFACE qilinadigan xato: platforma uni debug
 	// error ro'yxati + alert'da ko'rsatadi va node'ni qizil (failed) qiladi, flow
 	// to'xtaydi. ContextUpdates baribir qo'llanadi (xato detali state'da qoladi).
 	Error string `json:"error,omitempty"`
+}
+
+// Output — node'ning nomli chiqish edge'i. Handle id "output-<Name>" bo'ladi;
+// Result.ExitOutput = Name bo'lsa engine shu edge'ga yo'naltiradi.
+type Output struct {
+	Name    string `json:"name"`              // exit kaliti (masalan "found", "not_found")
+	Label   string `json:"label,omitempty"`   // UI'da ko'rinadigan nom
+	Variant string `json:"variant,omitempty"` // default|success|danger|warning|accent (rang)
 }
 
 // MatchResult — trigger.match qaytaradigan natija.
@@ -206,6 +214,12 @@ type Node struct {
 	Defaults      map[string]any
 	ProducesState []string // UI autocomplete uchun statik maslahat
 
+	// Outputs — node'ning NOMLI chiqish edge'lari (bir nechta tarmoq). Har biri
+	// uchun o'ng tomonda "output-<Name>" handle chiqadi. Execute'da Result.ExitOutput
+	// shu Name'lardan birini qaytarsa, engine o'sha edge'ga yo'naltiradi. Bo'sh
+	// bo'lsa — bitta oddiy chiqish (default).
+	Outputs []Output
+
 	// Trigger-specific.
 	Trigger     bool   // true = trigger node
 	TriggerMode string // "event-match" yoki ""
@@ -283,7 +297,22 @@ type sidebarDef struct {
 }
 
 type handleDef struct {
-	Preset string `json:"preset"`
+	Preset       string `json:"preset,omitempty"`
+	Kind         string `json:"kind,omitempty"`         // target|source
+	Side         string `json:"side,omitempty"`         // left|right
+	ID           string `json:"id,omitempty"`           // handle id (output-<name>)
+	OffsetClass  string `json:"offsetClass,omitempty"`  // vertikal joylashuv (translate-y-[..%])
+	StyleVariant string `json:"styleVariant,omitempty"` // default|success|danger|warning|accent
+	Label        string `json:"label,omitempty"`
+}
+
+// outputOffsetClass — n ta chiqishni markaz atrofida vertikal teng taqsimlaydi.
+func outputOffsetClass(i, n int) string {
+	if n <= 1 {
+		return ""
+	}
+	off := (float64(i) - float64(n-1)/2.0) * 170.0
+	return fmt.Sprintf("translate-y-[%d%%]", int(off))
 }
 
 func (m *Module) buildManifests() []nodeManifest {
@@ -306,9 +335,29 @@ func (m *Module) buildManifests() []nodeManifest {
 			}
 		}
 
-		handles := []handleDef{{Preset: "target-default"}, {Preset: "source-default"}}
-		if n.Trigger {
+		var handles []handleDef
+		switch {
+		case n.Trigger:
 			handles = []handleDef{{Preset: "source-default"}}
+		case len(n.Outputs) > 0:
+			// Bir nechta nomli chiqish: chap target + har output uchun o'ng source.
+			handles = []handleDef{{Kind: "target", Side: "left", ID: "target-handler"}}
+			for j, o := range n.Outputs {
+				variant := o.Variant
+				if variant == "" {
+					variant = "default"
+				}
+				handles = append(handles, handleDef{
+					Kind:         "source",
+					Side:         "right",
+					ID:           "output-" + o.Name,
+					OffsetClass:  outputOffsetClass(j, len(n.Outputs)),
+					StyleVariant: variant,
+					Label:        o.Label,
+				})
+			}
+		default:
+			handles = []handleDef{{Preset: "target-default"}, {Preset: "source-default"}}
 		}
 
 		man := nodeManifest{

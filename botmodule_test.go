@@ -384,6 +384,36 @@ func TestResultError(t *testing.T) {
 	}
 }
 
+// Node.Outputs describe()'da har biri uchun "output-<name>" source handle berishini tekshiradi.
+func TestNodeOutputs(t *testing.T) {
+	m := botmodule.New("r", "R")
+	m.AddNode(botmodule.Node{
+		Type: "r.Route",
+		Outputs: []botmodule.Output{
+			{Name: "found", Label: "Topildi", Variant: "success"},
+			{Name: "missing", Label: "Yo'q", Variant: "danger"},
+		},
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result { return botmodule.Result{ExitOutput: "found"} },
+	})
+	resp := rpcCall(t, m.ServeHandler(), "describe", nil)
+	result, _ := resp["result"].(map[string]any)
+	nodes, _ := result["nodes"].([]any)
+	node := nodes[0].(map[string]any)
+	handles, _ := node["handles"].([]any)
+	ids := map[string]bool{}
+	for _, h := range handles {
+		hm := h.(map[string]any)
+		if id, ok := hm["id"].(string); ok {
+			ids[id] = true
+		}
+	}
+	for _, want := range []string{"target-handler", "output-found", "output-missing"} {
+		if !ids[want] {
+			t.Errorf("handle %q yo'q; handles=%v", want, ids)
+		}
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

@@ -24,6 +24,15 @@ type Field struct {
 	CredentialType string         `json:"credentialType,omitempty"`
 	Options        []SelectOption `json:"options,omitempty"`
 	VisibleWhen    *VisibleWhen   `json:"visibleWhen,omitempty"`
+
+	// dynamic_select uchun (kaskadli, Google Sheets uslubida):
+	// Type="dynamic_select" + Resource (modul registratsiyalаgan options loader nomi).
+	// CredentialKey — qaysi field'dagi credential ishlatiladi (default "credential_id").
+	// DependsOn — bu ro'yxatdagi field'lar o'zgarsa optionlar qayta yuklanadi va
+	// ularning qiymatlari loader'ga params bo'lib boradi (doc → sheet → table).
+	Resource      string   `json:"resource,omitempty"`
+	CredentialKey string   `json:"credentialKey,omitempty"`
+	DependsOn     []string `json:"dependsOn,omitempty"`
 }
 
 // SelectOption — select field uchun tanlov elementi.
@@ -243,6 +252,36 @@ type Module struct {
 
 	nodes           []*Node
 	credentialTypes []CredentialType
+	optionLoaders   map[string]func(*OptionsCtx) []SelectOption
+}
+
+// OptionsCtx — dynamic_select options loader'ига uzatiladigan kontekst.
+type OptionsCtx struct {
+	Resource    string                 // qaysi resource so'ralmoqda
+	Data        map[string]any         // dependsOn field qiymatlari (kaskad params)
+	Credentials map[string]*Credential // tanlangan credential(lar)
+}
+
+// String — Data ichidan string param oladi (masalan dependsOn qiymati).
+func (c *OptionsCtx) String(key string) string {
+	v, ok := c.Data[key]
+	if !ok {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// Credential — birinchi (yoki yagona) credential'ni qaytaradi. Topilmasa (nil,false).
+func (c *OptionsCtx) Credential() (*Credential, bool) {
+	for _, cr := range c.Credentials {
+		if cr != nil {
+			return cr, true
+		}
+	}
+	return nil, false
 }
 
 // New — yangi modul yaratadi.
@@ -264,6 +303,16 @@ func (m *Module) AddNode(n Node) {
 // shu turdan credential yaratadi. Key global unique bo'lsin (masalan "weather.apikey").
 func (m *Module) AddCredentialType(ct CredentialType) {
 	m.credentialTypes = append(m.credentialTypes, ct)
+}
+
+// AddOptionsLoader — dynamic_select field uchun options yuklovchi ro'yxatga oladi.
+// resource — Field.Resource bilan mos bo'lishi shart. fn ctx (dependsOn params +
+// credential) oladi va tanlovlar ro'yxatini qaytaradi (doc/sheet/table kabi).
+func (m *Module) AddOptionsLoader(resource string, fn func(*OptionsCtx) []SelectOption) {
+	if m.optionLoaders == nil {
+		m.optionLoaders = map[string]func(*OptionsCtx) []SelectOption{}
+	}
+	m.optionLoaders[resource] = fn
 }
 
 // -----------------------------------------------------------------------------
@@ -469,6 +518,12 @@ type triggerParams struct {
 	Context map[string]any `json:"context"`
 }
 
+type optionsParams struct {
+	Resource    string                 `json:"resource"`
+	Params      map[string]any         `json:"params"` // dependsOn qiymatlari
+	Credentials map[string]*Credential `json:"credentials"`
+}
+
 // -----------------------------------------------------------------------------
 // HTTP handlers
 // -----------------------------------------------------------------------------
@@ -551,6 +606,26 @@ func (m *Module) handleRPC(w http.ResponseWriter, r *http.Request) {
 			Context: p.Context,
 		})
 		resp = okResp(req.ID, result)
+
+	case "options.load":
+		var p optionsParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			resp = errResp(req.ID, -32602, "invalid params")
+			break
+		}
+		fn := m.optionLoaders[p.Resource]
+		if fn == nil {
+			resp = errResp(req.ID, -32601, fmt.Sprintf("unknown options resource: %s", p.Resource))
+			break
+		}
+		if p.Params == nil {
+			p.Params = map[string]any{}
+		}
+		opts := fn(&OptionsCtx{Resource: p.Resource, Data: p.Params, Credentials: p.Credentials})
+		if opts == nil {
+			opts = []SelectOption{}
+		}
+		resp = okResp(req.ID, map[string]any{"options": opts})
 
 	default:
 		resp = errResp(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))

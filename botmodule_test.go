@@ -414,6 +414,38 @@ func TestNodeOutputs(t *testing.T) {
 	}
 }
 
+// dynamic_select uchun options.load RPC: loader chaqirilib, params (dependsOn)
+// va resource'ga qarab options qaytishini tekshiradi (kaskad).
+func TestOptionsLoad(t *testing.T) {
+	m := botmodule.New("g", "G")
+	m.AddOptionsLoader("sheets", func(c *botmodule.OptionsCtx) []botmodule.SelectOption {
+		doc := c.String("doc_id")
+		if doc != "DOC1" {
+			return nil
+		}
+		return []botmodule.SelectOption{{Value: "s1", Label: "Sheet 1"}, {Value: "s2", Label: "Sheet 2"}}
+	})
+
+	resp := rpcCall(t, m.ServeHandler(), "options.load", map[string]any{
+		"resource": "sheets",
+		"params":   map[string]any{"doc_id": "DOC1"},
+	})
+	result, _ := resp["result"].(map[string]any)
+	opts, _ := result["options"].([]any)
+	if len(opts) != 2 {
+		t.Fatalf("options len = %d, want 2 (resp=%v)", len(opts), resp)
+	}
+	if first := opts[0].(map[string]any); first["value"] != "s1" {
+		t.Errorf("first option = %v, want s1", first)
+	}
+
+	// Noma'lum resource → xato
+	bad := rpcCall(t, m.ServeHandler(), "options.load", map[string]any{"resource": "nope"})
+	if bad["error"] == nil {
+		t.Error("noma'lum resource uchun error kutilgan edi")
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

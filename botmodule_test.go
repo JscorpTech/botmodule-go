@@ -588,6 +588,42 @@ func TestUploadFileTrailingSlash(t *testing.T) {
 	}
 }
 
+func TestUploadFilePreservesPostAcrossRedirect(t *testing.T) {
+	var gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/up/" {
+			http.Redirect(w, r, "/final/", http.StatusMovedPermanently)
+			return
+		}
+		if r.URL.Path != "/final/" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		gotMethod = r.Method
+		w.Write([]byte(`{"uuid":"redirect-ok"}`))
+	}))
+	defer srv.Close()
+
+	var up string
+	m := botmodule.New("f", "F")
+	m.AddNode(botmodule.Node{
+		Type: "f.Up",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+			up, _ = c.UploadFile("a.txt", []byte("hi"))
+			return botmodule.Result{}
+		},
+	})
+	rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{
+		"type": "f.Up", "data": map[string]any{},
+		"file_api": map[string]any{"upload_url": srv.URL + "/up", "token": "t"},
+	})
+	if gotMethod != http.MethodPost {
+		t.Errorf("redirected method = %q, want POST", gotMethod)
+	}
+	if up != "redirect-ok" {
+		t.Errorf("UploadFile uuid = %q, want redirect-ok", up)
+	}
+}
+
 func TestExecuteCtxHelpers(t *testing.T) {
 	var capturedCtx *botmodule.ExecuteCtx
 	m := botmodule.New("h", "H")

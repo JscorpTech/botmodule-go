@@ -73,7 +73,7 @@ type CredentialField struct {
 // CredentialType — modul e'lon qiladigan credential turi. Foydalanuvchi shu
 // turdan credential yaratadi; engine uni decrypt qilib node.execute'ga uzatadi.
 type CredentialType struct {
-	Key    string            `json:"key"`   // global unique (masalan "weather.apikey")
+	Key    string            `json:"key"` // global unique (masalan "weather.apikey")
 	Label  string            `json:"label,omitempty"`
 	Icon   string            `json:"icon,omitempty"`  // lucide nomi
 	Color  string            `json:"color,omitempty"` // hex (#3B82F6)
@@ -185,7 +185,25 @@ func (c *ExecuteCtx) UploadFileWithTTL(filename string, content []byte, ttlSecon
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+c.files.Token)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		CheckRedirect: func(next *http.Request, via []*http.Request) error {
+			if len(via) == 0 {
+				return nil
+			}
+			next.Method = via[0].Method
+			next.GetBody = via[0].GetBody
+			if via[0].GetBody != nil {
+				body, err := via[0].GetBody()
+				if err != nil {
+					return err
+				}
+				next.Body = body
+			}
+			next.Header = via[0].Header.Clone()
+			return nil
+		},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}

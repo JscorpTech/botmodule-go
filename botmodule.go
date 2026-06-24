@@ -37,6 +37,12 @@ type Field struct {
 	Resource      string   `json:"resource,omitempty"`
 	CredentialKey string   `json:"credentialKey,omitempty"`
 	DependsOn     []string `json:"dependsOn,omitempty"`
+
+	// read-only field uchun: faqat ko'rsatish + nusxa olish (input emas).
+	// Autofill="webhook" bo'lsa, constructor node birinchi qo'yilganda backend'dan
+	// shu node uchun unique webhook URL oladi (loyiha ichida unique, bir marta)
+	// va Key'dagi data'ga yozadi — keyin shu URL'ga request kelganda node ishlaydi.
+	Autofill string `json:"autofill,omitempty"`
 }
 
 // SelectOption — select field uchun tanlov elementi.
@@ -464,6 +470,14 @@ func (c *OptionsCtx) Credential() (*Credential, bool) {
 		}
 	}
 	return nil, false
+}
+
+// WebhookURLField — node manifestiga "read-only" webhook URL maydonini qo'shadi.
+// Constructor node birinchi qo'yilganda backend'dan shu node uchun unique URL oladi
+// (bir marta, cache'lanadi) va foydalanuvchiga faqat ko'rish + nusxa olish uchun
+// ko'rsatadi. Shu URL'ga tashqaridan request kelganda node ishga tushadi.
+func WebhookURLField(key, label string) Field {
+	return Field{Type: "read-only", Key: key, Label: label, Autofill: "webhook"}
 }
 
 // New — yangi modul yaratadi.

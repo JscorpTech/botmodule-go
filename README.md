@@ -768,8 +768,10 @@ Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
     uuid, err := c.UploadFile("report.pdf", pdfBytes)
     // SAQLASH: vaqtinchalik fayl (1 soat = 3600 soniya)
     uuid, err = c.UploadFileWithTTL("temp.pdf", pdfBytes, 3600)
-    // PUBLIC URL: token talab qilmaydigan retrieve URL
-    url := c.FileURL(uuid)
+    // API URL: metadata/retrieve endpoint
+    apiURL := c.FileURL(uuid)
+    // DIRECT URL: S3/B2 signed download URL, agar backend metadata qaytarsa
+    downloadURL, err := c.FileDownloadURL(uuid)
     // O'QISH: UUID bo'yicha baytlar
     data, err := c.GetFile(uuid)
     // O'CHIRISH
@@ -781,8 +783,9 @@ Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
 |---|---|
 | `c.UploadFile(name, content []byte) (uuid string, err error)` | Faylni doimiy saqlaydi, UUID qaytaradi |
 | `c.UploadFileWithTTL(name string, content []byte, ttlSeconds int) (uuid string, err error)` | Faylni saqlaydi; `ttlSeconds > 0` bo'lsa shuncha soniyadan keyin o'chiriladi, `<= 0` — doimiy |
-| `c.FileURL(uuid string) string` | Fayl uchun public HTTP retrieve URL qaytaradi; `get_base` bo'lmasa `""` |
-| `c.GetFile(uuid string) ([]byte, error)` | Faylni o'qiydi (public retrieve) |
+| `c.FileURL(uuid string) string` | Fayl metadata/retrieve endpointini qaytaradi; backend JSON metadata qaytarishi mumkin |
+| `c.FileDownloadURL(uuid string) (string, error)` | Backend metadata ichidagi direct `data.url`/`data.file` download URL'ni qaytaradi |
+| `c.GetFile(uuid string) ([]byte, error)` | Fayl baytlarini o'qiydi; metadata endpoint bo'lsa direct URL'ni resolve qiladi |
 | `c.DeleteFile(uuid string) error` | Faylni o'chiradi |
 
 > Flow'da fayl `DownloadFileNode` bilan saqlangan bo'lsa, uning UUID'sini (`{{state_x}}`)

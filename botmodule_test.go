@@ -448,7 +448,8 @@ func TestOptionsLoad(t *testing.T) {
 
 // ExecuteCtx.UploadFile/GetFile engine bergan file_api orqali ishlashini tekshiradi.
 func TestFileAPI(t *testing.T) {
-	// Soxta platforma fayl API: upload → {uuid}, get → baytlar.
+	var signedURL string
+	// Soxta platforma fayl API: upload → {uuid}, metadata → {data.url}, signed → baytlar.
 	fileSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost { // upload
 			if r.Header.Get("Authorization") != "Bearer tok123" {
@@ -458,11 +459,21 @@ func TestFileAPI(t *testing.T) {
 			w.Write([]byte(`{"uuid":"file-xyz"}`))
 			return
 		}
-		w.Write([]byte("FILEBYTES")) // get
+		if r.URL.Path == "/file-xyz/" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status":true,"data":{"url":"` + signedURL + `","file":"` + signedURL + `","uuid":"file-xyz"}}`))
+			return
+		}
+		if r.URL.Path == "/signed/file-xyz" {
+			w.Write([]byte("FILEBYTES"))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer fileSrv.Close()
+	signedURL = fileSrv.URL + "/signed/file-xyz"
 
-	var up, got, fileURL string
+	var up, got, fileURL, downloadURL string
 	m := botmodule.New("f", "F")
 	m.AddNode(botmodule.Node{
 		Type: "f.Files",
@@ -470,6 +481,7 @@ func TestFileAPI(t *testing.T) {
 			id, _ := c.UploadFile("a.txt", []byte("hi"))
 			up = id
 			fileURL = c.FileURL("file-xyz")
+			downloadURL, _ = c.FileDownloadURL("file-xyz")
 			b, _ := c.GetFile("file-xyz")
 			got = string(b)
 			return botmodule.Result{ContextUpdates: map[string]any{"uuid": id}}
@@ -490,6 +502,9 @@ func TestFileAPI(t *testing.T) {
 	}
 	if fileURL != fileSrv.URL+"/file-xyz/" {
 		t.Errorf("FileURL = %q, want %q", fileURL, fileSrv.URL+"/file-xyz/")
+	}
+	if downloadURL != signedURL {
+		t.Errorf("FileDownloadURL = %q, want %q", downloadURL, signedURL)
 	}
 }
 

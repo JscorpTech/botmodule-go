@@ -129,8 +129,9 @@ type fileAPI struct {
 	Token     string `json:"token"`
 }
 
-// FileURL — saqlangan fayl UUID'i uchun public retrieve URL qaytaradi.
-// Bu URL token talab qilmaydi. Engine file_api.get_base bermagan bo'lsa "" qaytaradi.
+// FileURL — saqlangan fayl UUID'i uchun platforma metadata/retrieve endpointini qaytaradi.
+// Backend bu endpointda JSON metadata qaytarishi mumkin; direct yuklab olish URL'i
+// kerak bo'lsa FileDownloadURL ishlating.
 func (c *ExecuteCtx) FileURL(uuid string) string {
 	if c.files == nil || c.files.GetBase == "" || strings.TrimSpace(uuid) == "" {
 		return ""
@@ -138,11 +139,53 @@ func (c *ExecuteCtx) FileURL(uuid string) string {
 	return strings.TrimSuffix(c.files.GetBase, "/") + "/" + strings.TrimSpace(uuid) + "/"
 }
 
-// GetFile — saqlangan faylni UUID bo'yicha o'qiydi (public retrieve). Baytlarni qaytaradi.
-func (c *ExecuteCtx) GetFile(uuid string) ([]byte, error) {
+// FileDownloadURL — saqlangan fayl UUID'i uchun direct public download URL qaytaradi.
+// Agar backend FileURL endpointida {"data":{"url":"..."}} yoki {"data":{"file":"..."}}
+// formatida javob bersa, shu signed/direct URL qaytariladi. Agar endpoint raw file
+// bo'lsa, metadata endpointning o'zi qaytariladi.
+func (c *ExecuteCtx) FileDownloadURL(uuid string) (string, error) {
 	url := c.FileURL(uuid)
 	if url == "" {
-		return nil, fmt.Errorf("file API mavjud emas")
+		return "", fmt.Errorf("file API mavjud emas")
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("get file url %s: status %d", uuid, resp.StatusCode)
+	}
+
+	var out struct {
+		Status bool `json:"status"`
+		Data   struct {
+			URL  string `json:"url"`
+			File string `json:"file"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return url, nil
+	}
+	if out.Data.URL != "" {
+		return out.Data.URL, nil
+	}
+	if out.Data.File != "" {
+		return out.Data.File, nil
+	}
+	return "", fmt.Errorf("file url %s: metadata ichida download URL topilmadi", uuid)
+}
+
+// GetFile — saqlangan faylni UUID bo'yicha o'qiydi (public retrieve). Baytlarni qaytaradi.
+func (c *ExecuteCtx) GetFile(uuid string) ([]byte, error) {
+	url, err := c.FileDownloadURL(uuid)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := http.Get(url)
 	if err != nil {

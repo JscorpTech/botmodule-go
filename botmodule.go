@@ -129,12 +129,21 @@ type fileAPI struct {
 	Token     string `json:"token"`
 }
 
+// FileURL — saqlangan fayl UUID'i uchun public retrieve URL qaytaradi.
+// Bu URL token talab qilmaydi. Engine file_api.get_base bermagan bo'lsa "" qaytaradi.
+func (c *ExecuteCtx) FileURL(uuid string) string {
+	if c.files == nil || c.files.GetBase == "" || strings.TrimSpace(uuid) == "" {
+		return ""
+	}
+	return strings.TrimSuffix(c.files.GetBase, "/") + "/" + strings.TrimSpace(uuid) + "/"
+}
+
 // GetFile — saqlangan faylni UUID bo'yicha o'qiydi (public retrieve). Baytlarni qaytaradi.
 func (c *ExecuteCtx) GetFile(uuid string) ([]byte, error) {
-	if c.files == nil || c.files.GetBase == "" {
+	url := c.FileURL(uuid)
+	if url == "" {
 		return nil, fmt.Errorf("file API mavjud emas")
 	}
-	url := strings.TrimSuffix(c.files.GetBase, "/") + "/" + uuid + "/"
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err

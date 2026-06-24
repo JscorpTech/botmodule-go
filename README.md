@@ -768,6 +768,8 @@ Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
     uuid, err := c.UploadFile("report.pdf", pdfBytes)
     // SAQLASH: vaqtinchalik fayl (1 soat = 3600 soniya)
     uuid, err = c.UploadFileWithTTL("temp.pdf", pdfBytes, 3600)
+    // PUBLIC URL: token talab qilmaydigan retrieve URL
+    url := c.FileURL(uuid)
     // O'QISH: UUID bo'yicha baytlar
     data, err := c.GetFile(uuid)
     // O'CHIRISH
@@ -779,6 +781,7 @@ Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
 |---|---|
 | `c.UploadFile(name, content []byte) (uuid string, err error)` | Faylni doimiy saqlaydi, UUID qaytaradi |
 | `c.UploadFileWithTTL(name string, content []byte, ttlSeconds int) (uuid string, err error)` | Faylni saqlaydi; `ttlSeconds > 0` bo'lsa shuncha soniyadan keyin o'chiriladi, `<= 0` — doimiy |
+| `c.FileURL(uuid string) string` | Fayl uchun public HTTP retrieve URL qaytaradi; `get_base` bo'lmasa `""` |
 | `c.GetFile(uuid string) ([]byte, error)` | Faylni o'qiydi (public retrieve) |
 | `c.DeleteFile(uuid string) error` | Faylni o'chiradi |
 

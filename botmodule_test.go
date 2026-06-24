@@ -462,13 +462,14 @@ func TestFileAPI(t *testing.T) {
 	}))
 	defer fileSrv.Close()
 
-	var up, got string
+	var up, got, fileURL string
 	m := botmodule.New("f", "F")
 	m.AddNode(botmodule.Node{
 		Type: "f.Files",
 		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
 			id, _ := c.UploadFile("a.txt", []byte("hi"))
 			up = id
+			fileURL = c.FileURL("file-xyz")
 			b, _ := c.GetFile("file-xyz")
 			got = string(b)
 			return botmodule.Result{ContextUpdates: map[string]any{"uuid": id}}
@@ -486,6 +487,9 @@ func TestFileAPI(t *testing.T) {
 	}
 	if got != "FILEBYTES" {
 		t.Errorf("GetFile = %q, want FILEBYTES", got)
+	}
+	if fileURL != fileSrv.URL+"/file-xyz/" {
+		t.Errorf("FileURL = %q, want %q", fileURL, fileSrv.URL+"/file-xyz/")
 	}
 }
 

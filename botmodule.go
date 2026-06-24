@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -147,7 +148,15 @@ func (c *ExecuteCtx) GetFile(uuid string) ([]byte, error) {
 
 // UploadFile — yangi fayl saqlaydi (platforma storage). Saqlangan fayl UUID'sini qaytaradi.
 // Bu UUID'ni ContextUpdates'ga qo'ysangiz, keyingi node'lar (Send*) faylni ishlatadi.
+// Fayl doimiy saqlanadi. TTL bilan saqlash uchun UploadFileWithTTL ishlatilsin.
 func (c *ExecuteCtx) UploadFile(filename string, content []byte) (string, error) {
+	return c.UploadFileWithTTL(filename, content, 0)
+}
+
+// UploadFileWithTTL — yangi fayl saqlaydi. ttlSeconds > 0 bo'lsa fayl shuncha
+// soniyadan keyin o'chiriladi; ttlSeconds <= 0 bo'lsa doimiy saqlanadi.
+// Saqlangan fayl UUID'sini qaytaradi.
+func (c *ExecuteCtx) UploadFileWithTTL(filename string, content []byte, ttlSeconds int) (string, error) {
 	if c.files == nil || c.files.UploadURL == "" {
 		return "", fmt.Errorf("file API mavjud emas (upload)")
 	}
@@ -159,6 +168,11 @@ func (c *ExecuteCtx) UploadFile(filename string, content []byte) (string, error)
 	}
 	if _, err := fw.Write(content); err != nil {
 		return "", err
+	}
+	if ttlSeconds > 0 {
+		if err := w.WriteField("ttl", strconv.Itoa(ttlSeconds)); err != nil {
+			return "", err
+		}
 	}
 	w.Close()
 

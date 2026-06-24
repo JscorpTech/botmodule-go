@@ -489,6 +489,68 @@ func TestFileAPI(t *testing.T) {
 	}
 }
 
+// TestUploadFileWithTTL — ttlSeconds > 0 bo'lsa multipart'ga "ttl" field qo'shilishini,
+// ttlSeconds <= 0 bo'lsa qo'shilmasligini tekshiradi.
+func TestUploadFileWithTTL(t *testing.T) {
+	t.Run("with ttl", func(t *testing.T) {
+		var gotTTL string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if err := r.ParseMultipartForm(1 << 20); err == nil {
+				gotTTL = r.FormValue("ttl")
+			}
+			w.Write([]byte(`{"uuid":"ttl-uuid"}`))
+		}))
+		defer srv.Close()
+
+		var up string
+		m := botmodule.New("f", "F")
+		m.AddNode(botmodule.Node{
+			Type: "f.TTL",
+			Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+				up, _ = c.UploadFileWithTTL("a.txt", []byte("hi"), 3600)
+				return botmodule.Result{}
+			},
+		})
+		rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{
+			"type": "f.TTL", "data": map[string]any{},
+			"file_api": map[string]any{"upload_url": srv.URL, "token": "t"},
+		})
+		if up != "ttl-uuid" {
+			t.Errorf("UploadFileWithTTL uuid = %q, want ttl-uuid", up)
+		}
+		if gotTTL != "3600" {
+			t.Errorf("ttl form field = %q, want 3600", gotTTL)
+		}
+	})
+
+	t.Run("zero ttl no field", func(t *testing.T) {
+		var hasTTL bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if err := r.ParseMultipartForm(1 << 20); err == nil {
+				hasTTL = r.FormValue("ttl") != ""
+			}
+			w.Write([]byte(`{"uuid":"perm-uuid"}`))
+		}))
+		defer srv.Close()
+
+		m := botmodule.New("f", "F")
+		m.AddNode(botmodule.Node{
+			Type: "f.Perm",
+			Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+				c.UploadFileWithTTL("b.txt", []byte("x"), 0)
+				return botmodule.Result{}
+			},
+		})
+		rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{
+			"type": "f.Perm", "data": map[string]any{},
+			"file_api": map[string]any{"upload_url": srv.URL, "token": "t"},
+		})
+		if hasTTL {
+			t.Error("ttlSeconds=0 bo'lsa 'ttl' form field bo'lmasligi kerak")
+		}
+	})
+}
+
 // TestUploadFileTrailingSlash — DRF APPEND_SLASH regressiyasi: upload_url trailing
 // slash'siz bo'lsa server 301 redirect qiladi; SDK URL'ni normallashtirmasa Go
 // client POST'ni GET'ga tushiradi (405). Fix: UploadFile trailing slash qo'shadi.

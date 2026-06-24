@@ -761,11 +761,13 @@ m.AddOptionsLoader("cities", func(c *botmodule.OptionsCtx) []botmodule.SelectOpt
 
 ### 20.5. Fayl bilan ishlash — `ExecuteCtx` fayl API
 Modul platforma fayllarini o'qiydi/saqlaydi/o'chiradi. Engine `node.execute`'da fayl
-API'ни (project'ga scoped, xavfsiz token) avtomatik uzatadi — alohida sozlash kerak emas.
+API'ni (project'ga scoped, xavfsiz token) avtomatik uzatadi — alohida sozlash kerak emas.
 ```go
 Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
-    // SAQLASH: yangi fayl → UUID
+    // SAQLASH: doimiy fayl → UUID
     uuid, err := c.UploadFile("report.pdf", pdfBytes)
+    // SAQLASH: vaqtinchalik fayl (1 soat = 3600 soniya)
+    uuid, err = c.UploadFileWithTTL("temp.pdf", pdfBytes, 3600)
     // O'QISH: UUID bo'yicha baytlar
     data, err := c.GetFile(uuid)
     // O'CHIRISH
@@ -775,7 +777,8 @@ Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
 ```
 | Metod | Vazifa |
 |---|---|
-| `c.UploadFile(name, content []byte) (uuid string, err error)` | Faylni saqlaydi, UUID qaytaradi (state'ga qo'ying → Send* node'lar ishlatadi) |
+| `c.UploadFile(name, content []byte) (uuid string, err error)` | Faylni doimiy saqlaydi, UUID qaytaradi |
+| `c.UploadFileWithTTL(name string, content []byte, ttlSeconds int) (uuid string, err error)` | Faylni saqlaydi; `ttlSeconds > 0` bo'lsa shuncha soniyadan keyin o'chiriladi, `<= 0` — doimiy |
 | `c.GetFile(uuid string) ([]byte, error)` | Faylni o'qiydi (public retrieve) |
 | `c.DeleteFile(uuid string) error` | Faylni o'chiradi |
 

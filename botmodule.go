@@ -427,6 +427,43 @@ type Node struct {
 	Match   func(c *TriggerCtx) MatchResult
 }
 
+// Tool — AI agent uchun modul beradigan dinamik tool. describe() uni "tools"
+// ro'yxatida qaytaradi; engine AI agent node'ga accessory sifatida ulaydi va
+// LLM uni chaqirsa, engine modul endpoint'iga JSON-RPC (method=RPCMethod,
+// params=LLM args) yuboradi. Invoke matn natija qaytaradi (LLM o'qiydi).
+type Tool struct {
+	// Name — global unique tool nomi (masalan "mymodule.search"). LLM shu nom
+	// bilan tool'ni chaqiradi.
+	Name string
+	// Description — LLM uchun tool nima qilishini aniq tushuntiruvchi matn.
+	Description string
+	// Parameters — JSON-Schema (type:object, properties, required). LLM shu
+	// sxema bo'yicha argument beradi. Bo'sh bo'lsa argumentsiz tool.
+	Parameters map[string]any
+	// RPCMethod — engine chaqiradigan JSON-RPC metod nomi. Bo'sh bo'lsa Name
+	// ishlatiladi. describe() manifest'ida shu qiymat "rpcMethod" sifatida chiqadi.
+	RPCMethod string
+	// Invoke — tool bajaruvchi handler. Args — LLM bergan argumentlar.
+	// Qaytargan matn LLM'ga natija sifatida beriladi.
+	Invoke func(c *ToolCtx) (string, error)
+}
+
+// ToolCtx — Tool.Invoke'ga uzatiladigan kontekst.
+type ToolCtx struct {
+	Args map[string]any // LLM bergan argumentlar (Parameters sxemasi bo'yicha)
+}
+
+// String — Args ichidan string param oladi.
+func (c *ToolCtx) String(key string) string {
+	if v, ok := c.Args[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
+}
+
 // -----------------------------------------------------------------------------
 // Module
 // -----------------------------------------------------------------------------
@@ -439,6 +476,7 @@ type Module struct {
 	Docs    string
 
 	nodes           []*Node
+	tools           []*Tool
 	credentialTypes []CredentialType
 	optionLoaders   map[string]func(*OptionsCtx) []SelectOption
 }
@@ -492,6 +530,13 @@ func New(id, name string) *Module {
 // AddNode — modulga node qo'shadi. Type majburiy va "moduleId.NodeName" formatida bo'lishi shart.
 func (m *Module) AddNode(n Node) {
 	m.nodes = append(m.nodes, &n)
+}
+
+// AddTool — modulga AI tool qo'shadi. Name global unique bo'lsin (masalan
+// "mymodule.search"). describe() uni "tools" ro'yxatida qaytaradi; engine AI
+// agent node uni accessory sifatida ko'rsatadi.
+func (m *Module) AddTool(t Tool) {
+	m.tools = append(m.tools, &t)
 }
 
 // AddCredentialType — modul o'z credential turini e'lon qiladi. describe() uni
@@ -676,6 +721,50 @@ func (m *Module) buildManifests() []nodeManifest {
 // JSON-RPC 2.0 types
 // -----------------------------------------------------------------------------
 
+// toolManifest — describe() "tools" chiqishi uchun JSON struct. Engine shu
+// formatni o'qiydi (name/description/parameters/rpcMethod).
+type toolManifest struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  map[string]any `json:"parameters"`
+	RPCMethod   string         `json:"rpcMethod"`
+}
+
+func (m *Module) buildToolManifests() []toolManifest {
+	out := make([]toolManifest, 0, len(m.tools))
+	for _, t := range m.tools {
+		method := t.RPCMethod
+		if method == "" {
+			method = t.Name
+		}
+		params := t.Parameters
+		if params == nil {
+			params = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		out = append(out, toolManifest{
+			Name:        t.Name,
+			Description: t.Description,
+			Parameters:  params,
+			RPCMethod:   method,
+		})
+	}
+	return out
+}
+
+// findToolByMethod — RPCMethod (yoki Name) bo'yicha tool topadi.
+func (m *Module) findToolByMethod(method string) *Tool {
+	for _, t := range m.tools {
+		rm := t.RPCMethod
+		if rm == "" {
+			rm = t.Name
+		}
+		if rm == method {
+			return t
+		}
+	}
+	return nil
+}
+
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Method  string          `json:"method"`
@@ -755,6 +844,7 @@ func (m *Module) handleRPC(w http.ResponseWriter, r *http.Request) {
 		resp = okResp(req.ID, map[string]any{
 			"module":          map[string]string{"id": m.ID, "name": m.Name, "version": m.Version},
 			"nodes":           m.buildManifests(),
+			"tools":           m.buildToolManifests(),
 			"credentialTypes": creds,
 		})
 
@@ -834,6 +924,27 @@ func (m *Module) handleRPC(w http.ResponseWriter, r *http.Request) {
 		resp = okResp(req.ID, map[string]any{"options": opts})
 
 	default:
+		// AI tool chaqiruvi: engine method=tool.RPCMethod, params=LLM args
+		// yuboradi (NewModuleTool kontrakti). Tool topilsa Invoke'ni chaqiramiz.
+		if tool := m.findToolByMethod(req.Method); tool != nil && tool.Invoke != nil {
+			var args map[string]any
+			if len(req.Params) > 0 {
+				if err := json.Unmarshal(req.Params, &args); err != nil {
+					resp = errResp(req.ID, -32602, "invalid params")
+					break
+				}
+			}
+			if args == nil {
+				args = map[string]any{}
+			}
+			result, err := tool.Invoke(&ToolCtx{Args: args})
+			if err != nil {
+				resp = errResp(req.ID, -32000, err.Error())
+				break
+			}
+			resp = okResp(req.ID, result)
+			break
+		}
 		resp = errResp(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
 

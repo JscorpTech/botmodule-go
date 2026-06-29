@@ -690,3 +690,50 @@ func TestExecuteCtxHelpers(t *testing.T) {
 		t.Errorf("cred.Data[api_key] = %q, want sk-123", cred.Data["api_key"])
 	}
 }
+
+func TestToolDescribeAndInvoke(t *testing.T) {
+	m := botmodule.New("mymodule", "My Module")
+	m.AddTool(botmodule.Tool{
+		Name:        "mymodule.search",
+		Description: "Search the catalog",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"query": map[string]any{"type": "string"}},
+			"required":   []any{"query"},
+		},
+		Invoke: func(c *botmodule.ToolCtx) (string, error) {
+			return "found: " + c.String("query"), nil
+		},
+	})
+	h := m.ServeHandler()
+
+	// describe() tools ro'yxatida chiqsin
+	resp := rpcCall(t, h, "describe", nil)
+	result, _ := resp["result"].(map[string]any)
+	tools, ok := result["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("tools = %v, want 1", result["tools"])
+	}
+	tool := tools[0].(map[string]any)
+	if tool["name"] != "mymodule.search" {
+		t.Errorf("tool.name = %v", tool["name"])
+	}
+	if tool["rpcMethod"] != "mymodule.search" {
+		t.Errorf("tool.rpcMethod = %v, want fallback to name", tool["rpcMethod"])
+	}
+
+	// engine kontrakti: method=rpcMethod, params=args
+	resp = rpcCall(t, h, "mymodule.search", map[string]any{"query": "kitob"})
+	if resp["error"] != nil {
+		t.Fatalf("tool invoke error: %v", resp["error"])
+	}
+	if resp["result"] != "found: kitob" {
+		t.Errorf("tool result = %v, want 'found: kitob'", resp["result"])
+	}
+
+	// noma'lum metod hali ham 404
+	resp = rpcCall(t, h, "nope.x", nil)
+	if resp["error"] == nil {
+		t.Error("unknown method should error")
+	}
+}

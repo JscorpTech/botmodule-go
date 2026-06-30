@@ -34,7 +34,7 @@ token'lari, JSON-RPC kontrakti, `module.yaml`, deploy — ipidan ignasigacha.
 17. [`module.yaml` — to'liq](#17-moduleyaml--toliq)
 18. [Test](#18-test)
 19. [Yangi modul yozish — checklist](#19-yangi-modul-yozish--checklist)
-20. [Qo'shimcha imkoniyatlar (v0.2–v0.5): Result.Error, Outputs, credential types, dynamic_select, fayl API, Global](#20-qoshimcha-imkoniyatlar-v02v05)
+20. [Qo'shimcha imkoniyatlar (v0.2–v0.6): Result.Alerts, Outputs, credential types, dynamic_select, fayl API, Global](#20-qoshimcha-imkoniyatlar-v02v06)
 
 ---
 
@@ -482,7 +482,14 @@ type Credential struct {
 ```go
 cred, ok := c.Credential("api_cred")
 if !ok {
-    return botmodule.Result{ContextUpdates: map[string]any{"error": "credential tanlanmagan"}}
+    return botmodule.Result{
+        ContextUpdates: map[string]any{"error": "credential tanlanmagan"},
+        ExitOutput: "error",
+        Alerts: []botmodule.Alert{{
+            Level: botmodule.AlertError,
+            Message: "credential tanlanmagan",
+        }},
+    }
 }
 switch cred.Mode {
 case "bearer":
@@ -676,16 +683,21 @@ func TestExecute(t *testing.T) {
 
 ---
 
-## 20. Qo'shimcha imkoniyatlar (v0.2–v0.5)
+## 20. Qo'shimcha imkoniyatlar (v0.2–v0.6)
 
-### 20.1. `Result.Error` — xatoni UI'ga chiqarish
-`Execute` `Result{Error: "..."}` qaytarsa, platforma uni **debug error ro'yxati + alert**'da
-ko'rsatadi va node'ni qizil (failed) qiladi (flow to'xtaydi). `ContextUpdates` baribir
-qo'llanadi (xato detali state'da qoladi).
+### 20.1. `Result.Alerts` — UI'ga info/warning/error chiqarish
+`Execute` `Result{Alerts: []botmodule.Alert{...}}` qaytarsa, platforma uni constructor
+**Xabarlar** paneliga chiqaradi. `level` qiymatlari: `info`, `warning`, `error`.
+Alert flow'ni to'xtatmaydi; xato branch kerak bo'lsa `ExitOutput: "error"` qaytaring.
 ```go
 return botmodule.Result{
     ContextUpdates: map[string]any{"llm_error": msg},
-    Error:          msg, // UI'da ko'rinadi
+    ExitOutput: "error",
+    Alerts: []botmodule.Alert{{
+        Level: botmodule.AlertError,
+        Message: msg,
+        Detail: "provider response: 500",
+    }},
 }
 ```
 

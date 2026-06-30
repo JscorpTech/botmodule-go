@@ -181,11 +181,16 @@ Engine action node bajarilганда chaqiradi.
 ```json
 {
   "context_updates": { "echo_output": "salom" },  // state'ga yoziladigan o'zgaruvchilar
-  "exit_output": ""                               // ixtiyoriy: nomli chiqish edge'iga yo'naltirish
+  "exit_output": "",                              // ixtiyoriy: nomli chiqish edge'iga yo'naltirish
+  "alerts": [                                     // ixtiyoriy: Xabarlar paneliga chiqadi
+    {"level": "warning", "message": "quota kam", "detail": "12% qoldi"}
+  ]
 }
 ```
 
-Xato bo'lsa JSON-RPC `error` qaytaring (flow to'xtaydi, node "error" bo'ladi).
+Transport/protocol xatosi bo'lsa JSON-RPC `error` qaytaring (flow to'xtaydi, node
+"error" bo'ladi). Biznes xabarlar uchun `alerts` va kerak bo'lsa `exit_output`
+ishlating.
 
 Namuna:
 ```js

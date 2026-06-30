@@ -384,6 +384,32 @@ func TestResultError(t *testing.T) {
 	}
 }
 
+func TestResultAlerts(t *testing.T) {
+	m := botmodule.New("a", "A")
+	m.AddNode(botmodule.Node{
+		Type: "a.Warn",
+		Execute: func(c *botmodule.ExecuteCtx) botmodule.Result {
+			return botmodule.Result{
+				Alerts: []botmodule.Alert{{
+					Level:   botmodule.AlertWarning,
+					Message: "quota kam",
+					Detail:  "12% qoldi",
+				}},
+			}
+		},
+	})
+	resp := rpcCall(t, m.ServeHandler(), "node.execute", map[string]any{"type": "a.Warn", "data": map[string]any{}})
+	result, _ := resp["result"].(map[string]any)
+	alerts, _ := result["alerts"].([]any)
+	if len(alerts) != 1 {
+		t.Fatalf("alerts len = %d, want 1", len(alerts))
+	}
+	alert, _ := alerts[0].(map[string]any)
+	if alert["level"] != "warning" || alert["message"] != "quota kam" || alert["detail"] != "12% qoldi" {
+		t.Errorf("unexpected alert: %v", alert)
+	}
+}
+
 // Node.Outputs describe()'da har biri uchun "output-<name>" source handle berishini tekshiradi.
 func TestNodeOutputs(t *testing.T) {
 	m := botmodule.New("r", "R")

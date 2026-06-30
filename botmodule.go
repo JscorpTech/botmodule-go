@@ -91,11 +91,26 @@ type CredentialType struct {
 type Result struct {
 	ContextUpdates map[string]any `json:"context_updates"`
 	ExitOutput     string         `json:"exit_output,omitempty"` // Node.Outputs dagi Name (qaysi chiqishga ketsin)
+	// Alerts — debug Xabarlar paneliga chiqadigan xabarlar. error/warning/info
+	// level'lari bor; flow'ni to'xtatmaydi. To'xtatish kerak bo'lsa Error ishlating.
+	Alerts []Alert `json:"alerts,omitempty"`
 	// Error — bo'sh bo'lmasa, bu SURFACE qilinadigan xato: platforma uni debug
 	// error ro'yxati + alert'da ko'rsatadi va node'ni qizil (failed) qiladi, flow
 	// to'xtaydi. ContextUpdates baribir qo'llanadi (xato detali state'da qoladi).
 	Error string `json:"error,omitempty"`
 }
+
+type Alert struct {
+	Level   string `json:"level"` // error|warning|info
+	Message string `json:"message"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+const (
+	AlertError   = "error"
+	AlertWarning = "warning"
+	AlertInfo    = "info"
+)
 
 // Output — node'ning nomli chiqish edge'i. Handle id "output-<Name>" bo'ladi;
 // Result.ExitOutput = Name bo'lsa engine shu edge'ga yo'naltiradi.
